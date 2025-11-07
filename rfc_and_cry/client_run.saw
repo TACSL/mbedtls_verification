@@ -1,0 +1,31 @@
+import "..//cry//Def.cry";
+import "conf.cry";
+import "client_valid_statem.cry";
+import "RFC_Model//client_state_machine.cry";
+
+let NUM = 40; 
+//number of states in state machine
+
+let xs = eval_list {{genc}};
+// let xs =
+// [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 36, 37, 38, 39, 44, 45, 46, 47, 52, 53, 54, 55, 60, 61, 62, 63]
+// ;
+//configuration
+
+let run_client_handshake x = do{
+    // print "Current configuration is: ";
+    // print {{ num2mbedc `x}};
+    print (str_concats ["mbedstatem[", show x, "]= "]);
+    let m = {{ (mbedtls_ssl_handshake`{NUM} (num2mbedc `x)).state }};
+    print m;
+    print (str_concats ["RFCstatem[", show x, "]= "]);
+    print {{ (stateMachine `{NUM} (num2RFCc `x)).cur_id }};
+};
+
+// print {{ (stateMachine `{NUM} (num2RFCc 0)) }};
+
+for xs (\x -> run_client_handshake (eval_int x));
+// for xs (\x -> run_client_handshake x);
+
+//saw client_run.saw > log/client_cmp_init.log
+

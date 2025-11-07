@@ -1,0 +1,374 @@
+module cry::client_statem where
+
+import cry::Def
+
+mbedtls_ssl_tls13_finalize_client_hello : SSL -> ([32], [32])
+mbedtls_ssl_tls13_finalize_client_hello s = if MBEDTLS_SSL_EARLY_DATA == True /\ MBEDTLS_SSL_TLS1_3_COMPATIBILITY_MODE == True /\ s.early_data_state == MBEDTLS_SSL_EARLY_DATA_STATE_IND_SENT
+                                                then (0, MBEDTLS_SSL_CLIENT_CCS_AFTER_CLIENT_HELLO) ///todo
+                                            else (0, MBEDTLS_SSL_SERVER_HELLO)
+
+
+mbedtls_ssl_write_client_hello : SSL -> ([32], SSL)
+mbedtls_ssl_write_client_hello s = (ret, s2)
+    where s2 = {state = state' ,
+                early_data_state = s.early_data_state ,
+                tls_version = s.tls_version ,
+                handshake = s.handshake,
+                conf = s.conf,
+                null_flag = s.null_flag
+                }
+          (ret, state') = if ((s.handshake.min_tls_version <= MBEDTLS_SSL_VERSION_TLS1_3)
+                                /\ (MBEDTLS_SSL_VERSION_TLS1_3 <= s.tls_version))
+                                then ((mbedtls_ssl_tls13_finalize_client_hello s).0, (mbedtls_ssl_tls13_finalize_client_hello s).1)
+                             else (0, MBEDTLS_SSL_SERVER_HELLO)
+
+ssl_tls13_process_server_hello : SSL -> [32] -> ([32], SSL)
+ssl_tls13_process_server_hello s mr = (ret, s2)
+    where s2 = {state = state' ,
+                early_data_state = s.early_data_state ,
+                tls_version = s.tls_version ,
+                handshake = s.handshake,
+                conf = s.conf,
+                null_flag = s.null_flag
+                }
+          ret' = ssl_tls13_preprocess_server_hello s.handshake.hello_retry_request_flag s.conf.tls13_kex_modes mr
+          (ret, state') = if ret' <$ 0
+                                then (ret', s.state)
+                            else if ret' == SSL_SERVER_HELLO_TLS1_2
+                                then (0, s.state)
+                            else if ret' == SSL_SERVER_HELLO_HRR
+                                then (0, MBEDTLS_SSL_CLIENT_CCS_BEFORE_2ND_CLIENT_HELLO)
+                            else (0, MBEDTLS_SSL_ENCRYPTED_EXTENSIONS)
+
+                             
+ssl_tls13_preprocess_server_hello : [8] -> [32] ->  [32] -> [32]
+ssl_tls13_preprocess_server_hello flag modes mr = if (mr == SSL_SERVER_HELLO) // mr \in {SSL_SERVER_HELLO, SSL_SERVER_HELLO_HRR}
+                                                        then mr
+                                                    else if mr== SSL_SERVER_HELLO_HRR
+                                                        then (
+                                                            if flag != 0
+                                                                then MBEDTLS_ERR_SSL_UNEXPECTED_MESSAGE
+                                                            else if modes && MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_EPHEMERAL_ALL == 0
+                                                                then MBEDTLS_ERR_SSL_ILLEGAL_PARAMETER
+                                                            else SSL_SERVER_HELLO_HRR )
+                                                    else mr
+
+ssl_tls13_process_encrypted_extensions : SSL-> ([32], SSL)
+ssl_tls13_process_encrypted_extensions s = (ret, s2)
+    where s2 = {state = state' ,
+                early_data_state = early_data_state' ,
+                tls_version = s.tls_version ,
+                handshake = s.handshake,
+                conf = s.conf,
+                null_flag = s.null_flag
+                }
+          early_data_state' = if MBEDTLS_SSL_EARLY_DATA == True
+                                then if (s.handshake.received_extensions && 0x00004000 != 0)
+                                    then if (s.handshake.key_exchange_mode && MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_PSK_ALL == 0)
+                                        then s.early_data_state
+                                    else MBEDTLS_SSL_EARLY_DATA_STATE_ACCEPTED
+                                else if s.early_data_state != MBEDTLS_SSL_EARLY_DATA_STATE_NO_IND_SENT
+                                    then MBEDTLS_SSL_EARLY_DATA_STATE_REJECTED
+                                else s.early_data_state
+                            else s.early_data_state
+          (ret,state') = if MBEDTLS_SSL_EARLY_DATA == True 
+                        /\ (s.handshake.received_extensions && 0x00004000 != 0) //MBEDTLS_SSL_EXT_MASK(EARLY_DATA)
+                        /\ (s.handshake.key_exchange_mode && MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_PSK_ALL == 0)
+                            then (MBEDTLS_ERR_SSL_ILLEGAL_PARAMETER, s.state)///todo
+                        else if MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_EPHEMERAL_ENABLED == True
+                            then (
+                                if s.handshake.key_exchange_mode && MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_PSK_ALL != 0
+                                    then (0, MBEDTLS_SSL_SERVER_FINISHED)
+                                else (0, MBEDTLS_SSL_CERTIFICATE_REQUEST)
+                            )
+                        else (0, s.state)
+
+ssl_tls13_process_certificate_request : SSL -> [32] -> ([32], SSL)
+ssl_tls13_process_certificate_request s mr= (ret, s2)
+    where s2 = {state = state' ,
+                early_data_state = s.early_data_state ,
+                tls_version = s.tls_version ,
+                handshake = s.handshake,
+                conf = s.conf,
+                null_flag = s.null_flag
+                }
+          ret' = mr
+          (ret, state') = if ret' == SSL_CERTIFICATE_REQUEST_EXPECT_REQUEST
+                                then (SSL_CERTIFICATE_REQUEST_EXPECT_REQUEST, MBEDTLS_SSL_SERVER_CERTIFICATE)
+                           else if ret' == SSL_CERTIFICATE_REQUEST_SKIP
+                                then (0, MBEDTLS_SSL_SERVER_CERTIFICATE)
+                           else (MBEDTLS_ERR_SSL_INTERNAL_ERROR, s.state)
+
+ssl_tls13_process_server_certificate : SSL -> [32] -> ([32], SSL)
+ssl_tls13_process_server_certificate s mr = (ret, s2)
+    where s2 = {state = state' ,
+                early_data_state = s.early_data_state ,
+                tls_version = s.tls_version ,
+                handshake = s.handshake,
+                conf = s.conf,
+                null_flag = s.null_flag
+                }
+          ret' = mr
+          (ret,state') = if ret' != 0 then (ret', s.state)
+                          else (0, MBEDTLS_SSL_CERTIFICATE_VERIFY)
+
+ssl_tls13_process_certificate_verify : SSL -> [32] -> ([32], SSL)
+ssl_tls13_process_certificate_verify s mr = (ret, s2)
+    where s2 = {state = state' ,
+                early_data_state = s.early_data_state ,
+                tls_version = s.tls_version ,
+                handshake = s.handshake,
+                conf = s.conf,
+                null_flag = s.null_flag
+                }
+          ret' = mr
+          (ret,state') = if ret' != 0 then (ret', s.state)
+                          else (0, MBEDTLS_SSL_SERVER_FINISHED)
+
+ssl_tls13_process_server_finished : SSL -> [32] -> ([32], SSL)
+ssl_tls13_process_server_finished s mr = (ret, s2)
+    where s2 = {state = state' ,
+                early_data_state = early_data_state' ,
+                tls_version = s.tls_version ,
+                handshake = s.handshake,
+                conf = s.conf,
+                null_flag = s.null_flag
+                }
+          ret' = mr
+          early_data_state' = if ret' == 0 /\ MBEDTLS_SSL_EARLY_DATA == True /\ s.early_data_state == MBEDTLS_SSL_EARLY_DATA_STATE_ACCEPTED
+                                then MBEDTLS_SSL_EARLY_DATA_STATE_SERVER_FINISHED_RECEIVED
+                              else s.early_data_state
+          (ret,state') = if ret' != 0 then (ret', s.state)
+                          else if MBEDTLS_SSL_EARLY_DATA == True /\ s.early_data_state == MBEDTLS_SSL_EARLY_DATA_STATE_ACCEPTED
+                                then (0, MBEDTLS_SSL_END_OF_EARLY_DATA)
+                          else if MBEDTLS_SSL_TLS1_3_COMPATIBILITY_MODE == True
+                                then (0, MBEDTLS_SSL_CLIENT_CCS_AFTER_SERVER_FINISHED)
+                          else (0, s.state)
+
+ssl_tls13_write_client_certificate : SSL -> [32] -> [32] -> ([32], SSL)
+ssl_tls13_write_client_certificate s mr non_empty = (ret, s2)
+    where s2 = {state = state' ,
+                early_data_state = s.early_data_state ,
+                tls_version = s.tls_version ,
+                handshake = s.handshake,
+                conf = s.conf,
+                null_flag = s.null_flag
+                }
+          ret' = mr
+          (ret,state') = if MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_EPHEMERAL_ENABLED == True
+                            then (
+                                if (s.handshake.client_auth !=0 /\ ret' != 0 )
+                                    then (ret', s.state)
+                                else if non_empty == 1
+                                    then (0, MBEDTLS_SSL_CLIENT_CERTIFICATE_VERIFY)
+                                else (0, MBEDTLS_SSL_CLIENT_FINISHED)
+                            )
+                            else (
+                                if non_empty == 1 
+                                    then (0, MBEDTLS_SSL_CLIENT_CERTIFICATE_VERIFY)
+                                else (0, MBEDTLS_SSL_CLIENT_FINISHED)
+                            )
+
+ssl_tls13_write_client_certificate_verify : SSL -> [32] -> ([32], SSL)
+ssl_tls13_write_client_certificate_verify s mr = (ret, s2)
+    where s2 = {state = state' ,
+                early_data_state = s.early_data_state ,
+                tls_version = s.tls_version ,
+                handshake = s.handshake,
+                conf = s.conf,
+                null_flag = s.null_flag
+                }
+          ret' = mr
+          (ret,state') = if ret' != 0 then (ret', s.state)
+                          else (0, MBEDTLS_SSL_CLIENT_FINISHED)
+
+ssl_tls13_write_client_finished : SSL -> [32] -> ([32], SSL)
+ssl_tls13_write_client_finished s mr = (ret, s2)
+    where s2 = {state = state' ,
+                early_data_state = s.early_data_state ,
+                tls_version = s.tls_version ,
+                handshake = s.handshake,
+                conf = s.conf,
+                null_flag = s.null_flag
+                }
+          ret' = mr
+          (ret,state') = if ret' != 0 then (ret', s.state)
+                          else (0, MBEDTLS_SSL_FLUSH_BUFFERS)
+
+ssl_tls13_flush_buffers : SSL -> ([32], SSL)
+ssl_tls13_flush_buffers s = (ret, s2)
+    where s2 = {state = state' ,
+                early_data_state = s.early_data_state ,
+                tls_version = s.tls_version ,
+                handshake = s.handshake,
+                conf = s.conf,
+                null_flag = s.null_flag
+                }
+          (ret,state') = (0, MBEDTLS_SSL_HANDSHAKE_WRAPUP)
+
+ssl_tls13_handshake_wrapup : SSL -> ([32], SSL)
+ssl_tls13_handshake_wrapup s = (ret, s2)
+    where s2 = {state = state' ,
+                early_data_state = s.early_data_state ,
+                tls_version = s.tls_version ,
+                handshake = s.handshake,
+                conf = s.conf,
+                null_flag = s.null_flag
+                }
+          (ret,state') = (0, MBEDTLS_SSL_HANDSHAKE_OVER)
+
+mbedtls_ssl_tls13_write_change_cipher_spec : SSL -> [32] -> ([32], SSL)
+mbedtls_ssl_tls13_write_change_cipher_spec s mr = (ret,s2)
+    where s2 = {state = s.state ,
+                early_data_state = s.early_data_state ,
+                tls_version = s.tls_version ,
+                handshake = {min_tls_version = s.handshake.min_tls_version,
+                             hello_retry_request_flag = s.handshake.hello_retry_request_flag,
+                             key_exchange_mode = s.handshake.key_exchange_mode,
+                             client_auth = s.handshake.client_auth,
+                             ccs_sent = ccs_sent',
+                             certificate_request_sent = s.handshake.certificate_request_sent,
+                             tls13_kex_modes = s.handshake.tls13_kex_modes,
+                             new_session_tickets_count = s.handshake.new_session_tickets_count,
+                             received_extensions = s.handshake.received_extensions,
+                             early_data_accepted = s.handshake.early_data_accepted
+                },
+                conf = s.conf,
+                null_flag = s.null_flag
+                }
+          ret' = mr
+          (ret,ccs_sent') = if s.handshake.ccs_sent != (0:[8]) then (0, s.handshake.ccs_sent)
+                            else if ret' != 0 then (ret', s.handshake.ccs_sent)
+                            else (0, MBEDTLS_SSL_MSG_CHANGE_CIPHER_SPEC)
+
+ssl_tls13_process_new_session_ticket : SSL -> [32] -> ([32], SSL)
+ssl_tls13_process_new_session_ticket s mr = (ret, s2)
+    where s2 = {state = state' ,
+                early_data_state = s.early_data_state ,
+                tls_version = s.tls_version ,
+                handshake = s.handshake,
+                conf = s.conf,
+                null_flag = s.null_flag
+                }
+          ret' = mr
+          (ret,state') = if ret' == POSTPROCESS_NEW_SESSION_TICKET_SIGNAL //0
+                            then (MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET, MBEDTLS_SSL_HANDSHAKE_OVER) //-
+                          else if ret' == POSTPROCESS_NEW_SESSION_TICKET_DISCARD
+                            then (0, MBEDTLS_SSL_HANDSHAKE_OVER) //1
+                          else (MBEDTLS_ERR_SSL_INTERNAL_ERROR, MBEDTLS_SSL_HANDSHAKE_OVER)
+
+ssl_tls13_write_end_of_early_data : SSL -> [32] -> ([32], SSL)
+ssl_tls13_write_end_of_early_data s mr = (ret, s2)
+    where s2 = {state = state' ,
+                early_data_state = s.early_data_state ,
+                tls_version = s.tls_version ,
+                handshake = s.handshake,
+                conf = s.conf,
+                null_flag = s.null_flag
+                }
+          ret' = mr
+          (ret,state') = if ret' != 0 then (ret', s.state)
+                          else (0, MBEDTLS_SSL_CLIENT_CERTIFICATE)
+
+mbedtls_ssl_tls13_handshake_client_step : SSL -> [32] -> [32] -> ([32], SSL)
+mbedtls_ssl_tls13_handshake_client_step s mr non_empty = (ret, s2)
+    where s2 = {state = state' ,
+                early_data_state = early_data_state' ,
+                tls_version = s.tls_version ,
+                handshake = {min_tls_version = s.handshake.min_tls_version,
+                             hello_retry_request_flag = s.handshake.hello_retry_request_flag,
+                             key_exchange_mode = s.handshake.key_exchange_mode,
+                             client_auth = s.handshake.client_auth,
+                             ccs_sent = ccs_sent',
+                             certificate_request_sent = s.handshake.certificate_request_sent,
+                             tls13_kex_modes = s.handshake.tls13_kex_modes,
+                             new_session_tickets_count = s.handshake.new_session_tickets_count,
+                             received_extensions = s.handshake.received_extensions,
+                             early_data_accepted = s.handshake.early_data_accepted
+                },
+                conf = s.conf,
+                null_flag = s.null_flag
+                }
+          early_data_state' = if MBEDTLS_SSL_TLS1_3_COMPATIBILITY_MODE == True 
+                              /\ (MBEDTLS_SSL_EARLY_DATA == True /\ s.state == MBEDTLS_SSL_CLIENT_CCS_AFTER_CLIENT_HELLO /\ (mbedtls_ssl_tls13_write_change_cipher_spec s mr).0 == 0 )
+                                then MBEDTLS_SSL_EARLY_DATA_STATE_CAN_WRITE
+                              else if s.state == MBEDTLS_SSL_ENCRYPTED_EXTENSIONS
+                                then (ssl_tls13_process_encrypted_extensions s).1.early_data_state
+                              else if s.state == MBEDTLS_SSL_SERVER_FINISHED
+                                then (ssl_tls13_process_server_finished s mr).1.early_data_state
+                              else s.early_data_state
+
+          ccs_sent' = if MBEDTLS_SSL_TLS1_3_COMPATIBILITY_MODE == True /\ 
+                        (  s.state == MBEDTLS_SSL_CLIENT_CCS_AFTER_SERVER_FINISHED 
+                        \/ s.state == MBEDTLS_SSL_CLIENT_CCS_BEFORE_2ND_CLIENT_HELLO
+                        \/ (MBEDTLS_SSL_EARLY_DATA == True /\ s.state == MBEDTLS_SSL_CLIENT_CCS_AFTER_CLIENT_HELLO))
+                        then (mbedtls_ssl_tls13_write_change_cipher_spec s mr).1.handshake.ccs_sent
+                      else s.handshake.ccs_sent
+
+          (ret,state') = if s.state == MBEDTLS_SSL_HELLO_REQUEST
+                            then (0, MBEDTLS_SSL_CLIENT_HELLO)
+                         else if s.state == MBEDTLS_SSL_CLIENT_HELLO
+                            then ((mbedtls_ssl_write_client_hello s).0, (mbedtls_ssl_write_client_hello s).1.state)
+                         else if s.state == MBEDTLS_SSL_SERVER_HELLO
+                            then ((ssl_tls13_process_server_hello s mr).0, (ssl_tls13_process_server_hello s mr).1.state)
+                         else if s.state == MBEDTLS_SSL_ENCRYPTED_EXTENSIONS
+                            then ((ssl_tls13_process_encrypted_extensions s).0, (ssl_tls13_process_encrypted_extensions s).1.state)
+                         else if MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_EPHEMERAL_ENABLED == True /\ s.state == MBEDTLS_SSL_CERTIFICATE_REQUEST
+                            then ((ssl_tls13_process_certificate_request s mr).0, (ssl_tls13_process_certificate_request s mr).1.state)
+                         else if MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_EPHEMERAL_ENABLED == True /\ s.state == MBEDTLS_SSL_SERVER_CERTIFICATE
+                            then ((ssl_tls13_process_server_certificate s mr).0, (ssl_tls13_process_server_certificate s mr).1.state)
+                         else if MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_EPHEMERAL_ENABLED == True /\ s.state == MBEDTLS_SSL_CERTIFICATE_VERIFY
+                            then ((ssl_tls13_process_certificate_verify s mr).0, (ssl_tls13_process_certificate_verify s mr).1.state)
+                         else if s.state == MBEDTLS_SSL_SERVER_FINISHED
+                            then ((ssl_tls13_process_server_finished s mr).0, (ssl_tls13_process_server_finished s mr).1.state)
+                         else if MBEDTLS_SSL_EARLY_DATA == True /\ s.state == MBEDTLS_SSL_END_OF_EARLY_DATA
+                            then ((ssl_tls13_write_end_of_early_data s mr).0, (ssl_tls13_write_end_of_early_data s mr).1.state) ///todo
+                         else if s.state == MBEDTLS_SSL_CLIENT_CERTIFICATE
+                            then ((ssl_tls13_write_client_certificate s mr non_empty).0, (ssl_tls13_write_client_certificate s mr non_empty).1.state)
+                         else if MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_EPHEMERAL_ENABLED == True /\ s.state == MBEDTLS_SSL_CLIENT_CERTIFICATE_VERIFY
+                            then ((ssl_tls13_write_client_certificate_verify s mr).0, (ssl_tls13_write_client_certificate_verify s mr).1.state)
+                         else if s.state == MBEDTLS_SSL_CLIENT_FINISHED
+                            then ((ssl_tls13_write_client_finished s mr).0, (ssl_tls13_write_client_finished s mr).1.state)
+                         else if s.state == MBEDTLS_SSL_FLUSH_BUFFERS
+                            then ((ssl_tls13_flush_buffers s).0, (ssl_tls13_flush_buffers s).1.state)
+                         else if s.state == MBEDTLS_SSL_HANDSHAKE_WRAPUP
+                            then ((ssl_tls13_handshake_wrapup s).0, (ssl_tls13_handshake_wrapup s).1.state)
+                         else if MBEDTLS_SSL_TLS1_3_COMPATIBILITY_MODE == True /\ s.state == MBEDTLS_SSL_CLIENT_CCS_BEFORE_2ND_CLIENT_HELLO
+                            then if (mbedtls_ssl_tls13_write_change_cipher_spec s mr).0 != 0 
+                                    then((mbedtls_ssl_tls13_write_change_cipher_spec s mr).0, s.state)
+                                else (0, MBEDTLS_SSL_CLIENT_HELLO)
+                         else if MBEDTLS_SSL_TLS1_3_COMPATIBILITY_MODE == True /\ s.state == MBEDTLS_SSL_CLIENT_CCS_AFTER_SERVER_FINISHED
+                            then if (mbedtls_ssl_tls13_write_change_cipher_spec s mr).0 != 0 
+                                    then((mbedtls_ssl_tls13_write_change_cipher_spec s mr).0, s.state)
+                                else (0, MBEDTLS_SSL_CLIENT_CERTIFICATE)
+                         else if MBEDTLS_SSL_TLS1_3_COMPATIBILITY_MODE == True /\ MBEDTLS_SSL_EARLY_DATA == True /\ s.state == MBEDTLS_SSL_CLIENT_CCS_AFTER_CLIENT_HELLO
+                            then if (mbedtls_ssl_tls13_write_change_cipher_spec s mr).0 == 0
+                                then (0, MBEDTLS_SSL_SERVER_HELLO)
+                            else ((mbedtls_ssl_tls13_write_change_cipher_spec s mr).0, s.state) ///todo
+                         else if MBEDTLS_SSL_SESSION_TICKETS == True /\ s.state == MBEDTLS_SSL_TLS1_3_NEW_SESSION_TICKET
+                            then ((ssl_tls13_process_new_session_ticket s mr).0, (ssl_tls13_process_new_session_ticket s mr).1.state)
+                         else (MBEDTLS_ERR_SSL_BAD_INPUT_DATA, s.state)
+
+test = {
+        state = MBEDTLS_SSL_CLIENT_HELLO,
+        early_data_state = 0,
+        tls_version = 772,
+        handshake = {min_tls_version = 771,
+                    hello_retry_request_flag = 0,
+                    key_exchange_mode = 0,
+                    client_auth = 0,
+                    ccs_sent = 0,
+                    certificate_request_sent = 0,
+                    tls13_kex_modes = 0,
+                    new_session_tickets_count = 0,
+                    received_extensions = 0,
+                    early_data_accepted = 0},
+        conf = {tls13_kex_modes = 0,
+                min_tls_version = 0,
+                max_tls_version = 0x00000304,
+                f_ticket_write = 0,
+                new_session_tickets_count = 0},
+        null_flag = {handshake_flag = 1,
+                     conf_flag = 1,
+                     peer_cert_flag = 1}
+        } 

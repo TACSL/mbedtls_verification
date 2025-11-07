@@ -1,0 +1,53 @@
+module RFC_Model::state_machine where
+
+import RFC_Model::definition
+
+/*
+ * Assemble an 'Action' structure:
+ * Input: id, a StateID; acs, a list of Actions; params, a series of Parameters.
+ */
+action : Bit -> Direction -> StateID -> MessageType -> Protocol -> Sender -> StateID -> Parameters -> Action
+action con dir cur_i mt pr s next_i npara = {
+    condition = con, 
+    direction = dir,
+    tuple = {
+        cur_id = cur_i
+        ,message = {messageType = mt, protocol = pr, sender = s}
+        ,next_id = next_i
+        ,new_params = npara
+    }            
+}
+
+/*
+ * Construct a 'State' structure:
+ * Input: id, a StateID; acs, a list of Actions; params, configuration Parameters.
+ */
+state : {n} (fin n, n <= 10) => StateID -> [n]Action -> Parameters -> State
+state id acs params = {cur_id = id, actions = acs # zero, cur_params = params}
+
+
+// type Handshake = {
+//     tuples  : [3]TLSTuple,
+//     index      : Integer
+// }
+
+// (initialHandshake : Handshake) = {
+//     tuples = repeat`{3} empty_tuple,
+//                 index = 0
+// }
+
+
+// initialState = conState ID_ST_BEFORE empty_params
+// helloState = conState ID_ST_CW_CLNT_HELLO empty_params
+
+fst (a, b) = a
+snd (a, b) = b
+
+find : {n, x} (fin n) => (x -> Bool) -> x -> [n]x -> x
+find p def xs = snd (foldl f (False, def) xs)
+    where f (found, y) next = if ~found /\ p next then (True, next) else (found, y)
+
+
+
+
+            

@@ -1,0 +1,162 @@
+module cry::Def where
+
+(MBEDTLS_SSL_EARLY_DATA : Bit) = 1 //0 1
+(MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_EPHEMERAL_ENABLED : Bit) = 1
+(MBEDTLS_SSL_TLS1_3_COMPATIBILITY_MODE : Bit) = 1 //0 1
+(MBEDTLS_SSL_SESSION_TICKETS : Bit) = 1 //0 1
+(MBEDTLS_SSL_PROTO_TLS1_2 : Bit) = 0
+(MBEDTLS_X509_CRT_PARSE_C : Bit) = 0
+(MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_SOME_PSK_ENABLED : Bit) = 1
+(MBEDTLS_SSL_CLI_C : Bit) = 1
+(MBEDTLS_SSL_SRV_C : Bit) = 1
+
+type MBEDTLS_SSL_STATES = [32]
+(MBEDTLS_SSL_HELLO_REQUEST                       : MBEDTLS_SSL_STATES) = 0
+(MBEDTLS_SSL_CLIENT_HELLO                        : MBEDTLS_SSL_STATES) = 1
+(MBEDTLS_SSL_SERVER_HELLO                        : MBEDTLS_SSL_STATES) = 2
+(MBEDTLS_SSL_SERVER_CERTIFICATE                  : MBEDTLS_SSL_STATES) = 3
+(MBEDTLS_SSL_SERVER_KEY_EXCHANGE                 : MBEDTLS_SSL_STATES) = 4
+(MBEDTLS_SSL_CERTIFICATE_REQUEST                 : MBEDTLS_SSL_STATES) = 5
+(MBEDTLS_SSL_SERVER_HELLO_DONE                   : MBEDTLS_SSL_STATES) = 6
+(MBEDTLS_SSL_CLIENT_CERTIFICATE                  : MBEDTLS_SSL_STATES) = 7
+(MBEDTLS_SSL_CLIENT_KEY_EXCHANGE                 : MBEDTLS_SSL_STATES) = 8
+(MBEDTLS_SSL_CERTIFICATE_VERIFY                  : MBEDTLS_SSL_STATES) = 9
+(MBEDTLS_SSL_CLIENT_CHANGE_CIPHER_SPEC           : MBEDTLS_SSL_STATES) = 10
+(MBEDTLS_SSL_CLIENT_FINISHED                     : MBEDTLS_SSL_STATES) = 11
+(MBEDTLS_SSL_SERVER_CHANGE_CIPHER_SPEC           : MBEDTLS_SSL_STATES) = 12
+(MBEDTLS_SSL_SERVER_FINISHED                     : MBEDTLS_SSL_STATES) = 13
+(MBEDTLS_SSL_FLUSH_BUFFERS                       : MBEDTLS_SSL_STATES) = 14
+(MBEDTLS_SSL_HANDSHAKE_WRAPUP                    : MBEDTLS_SSL_STATES) = 15
+(MBEDTLS_SSL_NEW_SESSION_TICKET                  : MBEDTLS_SSL_STATES) = 16
+(MBEDTLS_SSL_SERVER_HELLO_VERIFY_REQUEST_SENT    : MBEDTLS_SSL_STATES) = 17
+(MBEDTLS_SSL_HELLO_RETRY_REQUEST                 : MBEDTLS_SSL_STATES) = 18
+(MBEDTLS_SSL_ENCRYPTED_EXTENSIONS                : MBEDTLS_SSL_STATES) = 19
+(MBEDTLS_SSL_END_OF_EARLY_DATA                   : MBEDTLS_SSL_STATES) = 20
+(MBEDTLS_SSL_CLIENT_CERTIFICATE_VERIFY           : MBEDTLS_SSL_STATES) = 21
+(MBEDTLS_SSL_CLIENT_CCS_AFTER_SERVER_FINISHED    : MBEDTLS_SSL_STATES) = 22
+(MBEDTLS_SSL_CLIENT_CCS_BEFORE_2ND_CLIENT_HELLO  : MBEDTLS_SSL_STATES) = 23
+(MBEDTLS_SSL_SERVER_CCS_AFTER_SERVER_HELLO       : MBEDTLS_SSL_STATES) = 24
+(MBEDTLS_SSL_CLIENT_CCS_AFTER_CLIENT_HELLO       : MBEDTLS_SSL_STATES) = 25
+(MBEDTLS_SSL_SERVER_CCS_AFTER_HELLO_RETRY_REQUEST: MBEDTLS_SSL_STATES) = 26
+(MBEDTLS_SSL_HANDSHAKE_OVER                      : MBEDTLS_SSL_STATES) = 27
+(MBEDTLS_SSL_TLS1_3_NEW_SESSION_TICKET           : MBEDTLS_SSL_STATES) = 28
+(MBEDTLS_SSL_TLS1_3_NEW_SESSION_TICKET_FLUSH     : MBEDTLS_SSL_STATES) = 29
+(ERR_STATE : MBEDTLS_SSL_STATES) = 0xffffffff
+
+type EARLY_DATA_STATES = [32]
+(MBEDTLS_SSL_EARLY_DATA_STATE_IDLE                     : MBEDTLS_SSL_STATES) = 0
+(MBEDTLS_SSL_EARLY_DATA_STATE_NO_IND_SENT              : MBEDTLS_SSL_STATES) = 1
+(MBEDTLS_SSL_EARLY_DATA_STATE_IND_SENT                 : MBEDTLS_SSL_STATES) = 2
+(MBEDTLS_SSL_EARLY_DATA_STATE_CAN_WRITE                : MBEDTLS_SSL_STATES) = 3
+(MBEDTLS_SSL_EARLY_DATA_STATE_ACCEPTED                 : MBEDTLS_SSL_STATES) = 4
+(MBEDTLS_SSL_EARLY_DATA_STATE_REJECTED                 : MBEDTLS_SSL_STATES) = 5
+(MBEDTLS_SSL_EARLY_DATA_STATE_SERVER_FINISHED_RECEIVED : MBEDTLS_SSL_STATES) = 6
+
+type MSP_VERSION = [32]
+(MBEDTLS_SSL_VERSION_UNKNOWN : MSP_VERSION) = 0
+(MBEDTLS_SSL_VERSION_TLS1_2  : MSP_VERSION) = 0x00000303
+(MBEDTLS_SSL_VERSION_TLS1_3  : MSP_VERSION) = 0x00000304
+
+(MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED : [32]) = (-0x0000006E)
+(MBEDTLS_ERR_SSL_UNEXPECTED_MESSAGE: [32]) = (-0x00007700)
+(MBEDTLS_ERR_SSL_ILLEGAL_PARAMETER: [32]) = (-0x00006600)
+
+(SSL_SERVER_HELLO : [32]) = 0
+(SSL_SERVER_HELLO_HRR : [32]) = 1
+(SSL_SERVER_HELLO_TLS1_2 : [32]) = 2
+
+(SSL_CLIENT_HELLO_OK : [32]) = 0
+(SSL_CLIENT_HELLO_TLS1_2 : [32]) = 2
+
+(MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_PSK_ALL : [8]) = 0x05
+(MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_EPHEMERAL_ALL :[32]) = 0x00000006
+
+(SSL_CERTIFICATE_REQUEST_EXPECT_REQUEST : [32]) = 0
+(SSL_CERTIFICATE_REQUEST_SKIP : [32]) = 1
+
+(SSL_NEW_SESSION_TICKET_WRITE : [32]) = 1
+(SSL_NEW_SESSION_TICKET_SKIP : [32]) = 0
+
+(MBEDTLS_ERR_SSL_INTERNAL_ERROR : [32]) = (-0x00006C00)
+(MBEDTLS_SSL_MSG_CHANGE_CIPHER_SPEC : [8]) = 20
+
+(POSTPROCESS_NEW_SESSION_TICKET_SIGNAL : [32]) = 0
+(POSTPROCESS_NEW_SESSION_TICKET_DISCARD : [32]) = 1
+(MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET : [32]) = (-0x00007B00)
+(MBEDTLS_ERR_SSL_BAD_INPUT_DATA : [32]) = (-0x00007100)
+(MBEDTLS_ERR_SSL_BAD_PROTOCOL_VERSION : [32]) = (-0x00006E80)
+
+(SSL_CERTIFICATE_REQUEST_SEND_REQUEST : [32]) = 0
+(NULL : [32]) = 0
+
+(MBEDTLS_ERR_SSL_HANDSHAKE_FAILURE : [32]) = (-0x00006E00)
+(MBEDTLS_ERR_SSL_FEATURE_UNAVAILABLE : [32]) = (-0x00007080)
+
+(SSL_GOT_END_OF_EARLY_DATA : [32]) = 0
+(SSL_GOT_EARLY_DATA : [32]) = 1
+(MBEDTLS_ERR_SSL_RECEIVED_EARLY_DATA : [32]) = (-0x00007C00)
+
+(MBEDTLS_SSL_IS_CLIENT : [8]) = 0
+(MBEDTLS_SSL_IS_SERVER : [8]) = 1
+
+type MS_HANDSHAKE_PARAMS = {
+    min_tls_version : MSP_VERSION,
+    hello_retry_request_flag : [8],
+    key_exchange_mode : [8],
+    client_auth : [8],
+    ccs_sent : [8],
+    certificate_request_sent : [8],
+    tls13_kex_modes : [8],
+    new_session_tickets_count : [16],
+    received_extensions : [32],
+    early_data_accepted : [8]
+}
+
+type MS_CONFIG = {
+    tls13_kex_modes : [32],
+    min_tls_version : MSP_VERSION,
+    max_tls_version :MSP_VERSION,
+    f_ticket_write : [32],
+    new_session_tickets_count : [16],
+    endpoint : [8]
+}
+
+type S_NULL_FLAG = {
+    handshake_flag : Bit,
+    conf_flag : Bit,
+    peer_cert_flag : Bit
+}
+
+type SSL = {
+    state : MBEDTLS_SSL_STATES,
+    early_data_state : EARLY_DATA_STATES,
+    tls_version : MSP_VERSION,
+    handshake : MS_HANDSHAKE_PARAMS,
+    conf : MS_CONFIG,
+    null_flag : S_NULL_FLAG
+}
+
+errSSL = {
+        state = ERR_STATE,
+        early_data_state = 0,
+        tls_version = 0,
+        handshake = {min_tls_version = 0,
+                    hello_retry_request_flag = 0,
+                    key_exchange_mode = 0,
+                    client_auth = 0,
+                    ccs_sent = 0,
+                    certificate_request_sent = 0,
+                    tls13_kex_modes = 0,
+                    new_session_tickets_count = 0,
+                    received_extensions = 0,
+                    early_data_accepted = 0},
+        conf = {tls13_kex_modes = 0,
+                min_tls_version = 0,
+                max_tls_version = 0,
+                f_ticket_write = 0,
+                new_session_tickets_count = 0,
+                endpoint = 1},
+        null_flag = {handshake_flag = 1,
+                     conf_flag = 1,
+                     peer_cert_flag = 1}
+}

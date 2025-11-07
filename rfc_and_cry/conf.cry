@@ -1,0 +1,219 @@
+module conf where
+
+import RFC_Model::definition
+import Def
+import RFC_Model::server_state_machine
+
+
+c_message_list : [8] -> [20][4]
+c_message_list x = cml
+    where 
+        ke = [MT_SERVER_HELLO, MT_SERVER_HELLO]
+        sp = [MT_ENCRYPTED_EXTENSIONS]
+        at1 = [MT_FINISHED]
+        at2 = [MT_CERTIFICATE_REQUEST, MT_CERTIFICATE, MT_CERTIFICATE_VERIFY, MT_FINISHED]
+        ph = [MT_NEWSESSION_TICKET, MT_NEWSESSION_TICKET, MT_NEWSESSION_TICKET, MT_NEWSESSION_TICKET, MT_NEWSESSION_TICKET]
+        cml = if x!1 /\ x!4 then ke#sp#at1#ph#zero
+              else if x!1 /\ ~x!4 then ke#sp#at1#zero
+              else if ~x!1 /\ x!4 then ke#sp#at2#ph#zero
+              else ke#sp#at2#zero
+
+num2RFCc : [8] -> Parameters
+num2RFCc x = {
+    middlebox_compatibility_mode  = x!0
+    ,psk_mode                     = x!1
+    ,early_data                   = if x!2 == 1 then 1 else 0
+    ,c_ext_early_data             = x!5 //x!2
+    ,empty_cert                   = x!3
+    ,s_new_session_ticket         = x!4
+    /*default*/
+    ,c_hrr                        = True
+    ,key_update                   = ku_off
+    ,post_handshake_auth          = pha_off
+    ,s_cert_request               = True//False
+    ,s_max_ticket_num             = 5
+    ,s_send_ticket_num            = 0
+    ,cert_request                 = False //Change only during key exchange
+    ,hello_retry_request          = 3
+    ,message_list                 = c_message_list x //no message in mbed
+}
+
+num2mbedc : [8] -> (SSL, OT_CONF)
+num2mbedc x = (
+    {
+        state = MBEDTLS_SSL_HELLO_REQUEST,
+        early_data_state = 2, //MBEDTLS_SSL_EARLY_DATA_STATE_IND_SENT
+        tls_version = 772,
+        handshake = {min_tls_version = 0,
+                    hello_retry_request_flag = 0,
+                    key_exchange_mode = if x!1  == 1 then 0x05 else 0, //psk_mode
+                    client_auth = 0,
+                    ccs_sent = 0,
+                    certificate_request_sent = 0,
+                    tls13_kex_modes = 0,
+                    new_session_tickets_count = 0,
+                    received_extensions = if x!5 then 0x00004000 else 0,//This field makes s.early_data_state = MBEDTLS_SSL_EARLY_DATA_STATE_ACCEPTED.
+                    early_data_accepted = 1},
+        conf = {tls13_kex_modes = 0x00000006,
+                min_tls_version = 0,
+                max_tls_version = 0x00000304,
+                f_ticket_write = 1,
+                new_session_tickets_count = 1,
+                endpoint = 0},
+        null_flag = {handshake_flag = 1,
+                        conf_flag = 1,
+                        peer_cert_flag = 1}
+    },
+    {
+        mbedtls_ssl_tls1_3_compatibility_mode = x!0, //middlebox_compatibility_mode
+        mbedtls_ssl_early_data = x!2, //early_data
+        mbedtls_ssl_session_tickets = x!4, //s_new_session_ticket
+        mbedtls_ssl_tls1_3_key_exchange_mode_ephemeral_enabled = True,
+        mbedtls_x509_crt_parse_c = False,
+        mbedtls_ssl_tls1_3_key_exchange_mode_some_psk_enabled = True,
+        amr = 1,
+        anon_empty = if x!3 == 1 then 0 else 1 //empty_cert
+    }
+)
+
+
+s_message_list : [8] -> [20][4]
+s_message_list x = sml
+    where 
+        ke1 = [MT_CLNT_HELLO, MT_CLNT_HELLO]
+        ke2 = [MT_CLNT_HELLO]
+        at11 = [MT_END_OF_EARLY_DATA]
+        at12 = []//[MT_CHANGE_CIPHER_SPEC]
+        at21 = [MT_CERTIFICATE, MT_CERTIFICATE_VERIFY, MT_FINISHED]
+        at22 = [MT_CERTIFICATE, MT_FINISHED]
+        at23 = [MT_FINISHED] //psk_mode==1 or others
+        sml = if x!7
+                then if x!2 == 1 /\ x!5
+                    then if x!1 then ke1#at11#at23#zero
+                    else if x!3
+                        then if ~x!4 then ke1#at11#at21#zero
+                        else ke1#at11#at22#zero
+                    else ke1#at11#at23#zero
+                else (
+                    if x!3
+                        then if ~x!4 then ke1#at21#zero
+                        else ke1#at22#zero
+                    else ke1#at23#zero
+                )
+              else (
+                if x!2 == 1 /\ x!5
+                    then if x!1 then ke2#at11#at23#zero
+                    else if x!3
+                        then if ~x!4 then ke2#at11#at21#zero
+                        else ke2#at11#at22#zero
+                    else ke2#at11#at23#zero
+                else if x!0 ==1
+                    then if x!3
+                        then if ~x!4 then ke2#at12#at21#zero
+                        else ke2#at12#at22#zero
+                    else ke2#at12#at23#zero
+                else (
+                    if x!3
+                        then if ~x!4 then ke2#at21#zero
+                        else ke2#at22#zero
+                    else ke2#at23#zero
+                )
+              )
+
+
+num2RFCs : [8] -> Parameters
+num2RFCs x = {
+    c_hrr                         = x!7
+    ,middlebox_compatibility_mode = x!0
+    ,psk_mode                     = x!1
+    ,early_data                   = if x!2 == 1 then 1 else 0
+    ,c_ext_early_data             = x!5
+    ,s_cert_request               = x!3
+    ,empty_cert                   = x!4
+    ,s_new_session_ticket         = x!6
+    /*default*/
+    ,key_update                   = ku_off
+    ,post_handshake_auth          = pha_off
+    ,s_max_ticket_num             = 5
+    ,s_send_ticket_num            = 0
+    ,cert_request                 = False
+    ,hello_retry_request          = 3
+    ,message_list                 = s_message_list x //no message in mbed
+}
+
+num2mbeds : {n} (fin n ,n>=1, 32 >= width n) =>[8] -> (SSL, OT_CONF)
+num2mbeds x = (
+    {
+        state = MBEDTLS_SSL_HELLO_REQUEST,
+        early_data_state = 0, 
+        tls_version = 772,
+        handshake = {min_tls_version = 0,
+                    hello_retry_request_flag = 0,
+                    key_exchange_mode = if x!1 == 1 then 0x05 else 0, //psk_mode
+                    client_auth = 0,
+                    ccs_sent = 0,
+                    certificate_request_sent = if x!3 == 1 then 1 else 0, //s_cert_request
+                    tls13_kex_modes = if max_t@(locateIndex`{n} x 51) > send_t@(locateIndex`{n} x 51) then 0x05 else 0 ,
+                    new_session_tickets_count = if max_t@(locateIndex`{n} x 46) <= send_t@(locateIndex`{n} x 46) then 0 else 1,
+                    received_extensions = 0,
+                    early_data_accepted = if x!5 then 1 else 0 //1
+                    },
+        conf = {tls13_kex_modes = 0x00000006,
+                min_tls_version = 0,
+                max_tls_version = 0x00000304,
+                f_ticket_write = 1,
+                new_session_tickets_count = 1,
+                endpoint = 1},
+        null_flag = {handshake_flag = 1,
+                        conf_flag = 1,
+                        peer_cert_flag = if x!4 == 1 then 0 else 1} //empty_cert
+    },
+    {
+        mbedtls_ssl_tls1_3_compatibility_mode = x!0, //middlebox_compatibility_mode
+        mbedtls_ssl_early_data = x!2, //early_data
+        mbedtls_ssl_session_tickets = x!6, //s_new_session_ticket
+        mbedtls_ssl_tls1_3_key_exchange_mode_ephemeral_enabled = True,
+        mbedtls_x509_crt_parse_c = False,
+        mbedtls_ssl_tls1_3_key_exchange_mode_some_psk_enabled = True,
+        amr = if x!7 then 1 else 0, // c_hrr  only use in ssl_tls13_process_client_hello
+        anon_empty = if x!4 == 1 then 0 else 1 //empty_cert
+    }
+    )
+    where max_t = (stateMachine `{n} (num2RFCs x)).new_params.s_max_ticket_num
+          send_t = (stateMachine `{n} (num2RFCs x)).new_params.s_send_ticket_num
+
+//When finding the configuration item is 'con', find the position of the last occurrence of the element 'e'.
+locateIndex : {n} (fin n ,n>=1, 32 >= width n) => [8] -> [6] -> [32]
+locateIndex con e= if (ys!0) > `n-1 then 0 else `n-1-(ys!0)
+    where xs = (stateMachine `{n} (num2RFCs con)).cur_id
+          ys = [0] # [if i == e then 0 else y+1 | i<- xs | y <- ys]
+//eg:locateIndex`{20} 32 46
+
+gen : {n} (fin n, n>=6) => [3*(2^^n)/4][8]
+gen = take`{3*(2^^n)/4}ys.0
+    where 
+        cur = 0:[8]
+        next = 1:[8]
+        ys = [(cur, next)] # [if ne!2 == 0 /\ ne!5 then (ne+4,ne+5) else (ne,ne+1) | (c,ne) <- ys]
+genc = gen`{6}
+gens = gen`{8}
+
+// del0 : {n, m} (fin n ,fin m, n>=m, m>=1) => [n][4] -> [3][4]
+// del0 xs = xs@@[0..`qwe]
+//     where 
+//         qwe = ys!0
+//         ys = [0] # [if i == 0 then y else y+1 | i<- xs | y <- ys]
+
+type OT_CONF = {
+    mbedtls_ssl_tls1_3_compatibility_mode : Bit,
+    mbedtls_ssl_early_data : Bit,
+    mbedtls_ssl_session_tickets : Bit,
+    mbedtls_ssl_tls1_3_key_exchange_mode_ephemeral_enabled : Bit,
+    mbedtls_x509_crt_parse_c : Bit,
+    mbedtls_ssl_tls1_3_key_exchange_mode_some_psk_enabled : Bit,
+    amr : [32],
+    anon_empty : [32]
+}
+
+// xxx : [32]->[6]
+// xxx x = reverse(x!![0..5])

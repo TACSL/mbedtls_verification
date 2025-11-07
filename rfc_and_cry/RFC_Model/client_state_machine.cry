@@ -1,0 +1,553 @@
+module RFC_Model::client_state_machine where
+
+import RFC_Model::definition
+import RFC_Model::state_machine
+
+(empty_params                    : Parameters) = {
+    c_hrr                        = False
+    ,middlebox_compatibility_mode = False
+    ,psk_mode                     = False
+    ,early_data                   = ee_off
+    ,c_ext_early_data             = False
+    ,s_cert_request               = False
+    ,key_update                   = ku_off
+    ,post_handshake_auth          = pha_off
+    ,empty_cert                   = False
+    ,s_new_session_ticket         = False
+    ,s_max_ticket_num             = 5
+    ,s_send_ticket_num            = 0
+    ,cert_request                 = False
+    ,hello_retry_request          = hrr_unknown
+    ,message_list                 = [MT_SERVER_HELLO, MT_ENCRYPTED_EXTENSIONS, MT_CERTIFICATE, MT_CERTIFICATE_VERIFY, MT_FINISHED] # zero
+}
+
+(empty_tuple     : TLSTuple) = {
+    cur_id        = ID_EMPTY
+    ,message      = empty_message
+    ,next_id      = ID_EMPTY
+    ,new_params   = empty_params
+}
+
+(empty_action    : Action) = {
+    condition    = False
+    ,direction   = none
+    ,tuple       = empty_tuple
+}
+
+/* 
+ * Client State Construction Function:
+ * Input current state ID, the parameters, and the actions;
+ * Return a state
+ */
+conClientState : StateID -> Parameters -> State
+conClientState id params = state id acs params
+    where   
+        /* from ST_CR_SRVR_HELLO to ST_CR_ENCRYPTED_EXTENSIONS
+         * drop the head from message_list (MT_ENCRYPTED_EXTENSIONS)
+         */
+
+        sessionticket_1 = {
+            c_hrr                         = params.c_hrr
+            ,hello_retry_request          = params.hello_retry_request
+            ,middlebox_compatibility_mode = params.middlebox_compatibility_mode
+            ,psk_mode                     = params.psk_mode
+            ,early_data                   = params.early_data
+            ,c_ext_early_data             = params.c_ext_early_data
+            ,cert_request                 = params.cert_request
+            ,key_update                   = params.key_update
+            ,post_handshake_auth          = params.post_handshake_auth
+            ,empty_cert                   = params.empty_cert
+            ,s_cert_request               = params.s_cert_request
+            ,s_new_session_ticket         = params.s_new_session_ticket
+            ,s_max_ticket_num             = params.s_max_ticket_num
+            ,s_send_ticket_num            = params.s_send_ticket_num
+            ,message_list                 = [1] # zero
+        }
+
+        params_read_only_1 = {
+            c_hrr                         = params.c_hrr
+            ,hello_retry_request          = params.hello_retry_request
+            ,middlebox_compatibility_mode = params.middlebox_compatibility_mode
+            ,psk_mode                     = params.psk_mode
+            ,early_data                   = params.early_data
+            ,c_ext_early_data             = params.c_ext_early_data
+            ,cert_request                 = params.cert_request
+            ,key_update                   = params.key_update
+            ,post_handshake_auth          = params.post_handshake_auth
+            ,empty_cert                   = params.empty_cert
+            ,s_cert_request               = params.s_cert_request
+            ,s_new_session_ticket         = params.s_new_session_ticket
+            ,s_max_ticket_num             = params.s_max_ticket_num
+            ,s_send_ticket_num            = params.s_send_ticket_num
+            ,message_list                 = (drop`{1} params.message_list # zero)
+        }
+
+        /* from ST_CW_CLNT_HELLO_ED to ST_CR_SRVR_HELLO
+         * drop the head from message_list (MT_SERVER_HELLO)
+         * and change 'hello_retry_request' to hrr_on
+         */
+        params_read_sh_hrr = {
+            c_hrr                         = params.c_hrr
+            ,hello_retry_request          = hrr_on
+            ,middlebox_compatibility_mode = params.middlebox_compatibility_mode
+            ,psk_mode                     = params.psk_mode
+            ,early_data                   = params.early_data
+            ,c_ext_early_data             = params.c_ext_early_data
+            ,cert_request                 = params.cert_request
+            ,key_update                   = params.key_update
+            ,post_handshake_auth          = params.post_handshake_auth
+            ,empty_cert                   = params.empty_cert
+            ,s_cert_request               = params.s_cert_request
+            ,s_new_session_ticket         = params.s_new_session_ticket
+            ,s_max_ticket_num             = params.s_max_ticket_num
+            ,s_send_ticket_num            = params.s_send_ticket_num
+            ,message_list                 = (drop`{1} params.message_list # zero)
+        }
+
+        /* from ST_CW_CLNT_HELLO_ED to ST_CR_SRVR_HELLO
+         * drop the head from message_list (MT_SERVER_HELLO)
+         * and change 'hello_retry_request' to hrr_off
+         */
+        params_read_sh_nohrr = {
+            c_hrr                         = params.c_hrr
+            ,hello_retry_request          = hrr_off
+            ,middlebox_compatibility_mode = params.middlebox_compatibility_mode
+            ,psk_mode                     = params.psk_mode
+            ,early_data                   = params.early_data
+            ,c_ext_early_data             = params.c_ext_early_data
+            ,cert_request                 = params.cert_request
+            ,key_update                   = params.key_update
+            ,post_handshake_auth          = params.post_handshake_auth
+            ,empty_cert                   = params.empty_cert
+            ,s_cert_request               = params.s_cert_request
+            ,s_new_session_ticket         = params.s_new_session_ticket
+            ,s_max_ticket_num             = params.s_max_ticket_num
+            ,s_send_ticket_num            = params.s_send_ticket_num
+            ,message_list                 = (drop`{1} params.message_list # zero)
+        }
+
+        /* from ST_CW_CHANGE to ST_CW_CHANGE_ED,
+         * and change 'middlebox_compatibility_mode' to off
+         */
+        params_write_ccs = {
+            c_hrr                         = params.c_hrr
+            ,hello_retry_request          = params.hello_retry_request
+            ,middlebox_compatibility_mode = False
+            ,psk_mode                     = params.psk_mode
+            ,early_data                   = params.early_data
+            ,c_ext_early_data             = params.c_ext_early_data
+            ,cert_request                 = params.cert_request
+            ,key_update                   = params.key_update
+            ,post_handshake_auth          = params.post_handshake_auth
+            ,empty_cert                   = params.empty_cert
+            ,s_cert_request               = params.s_cert_request
+            ,s_new_session_ticket         = params.s_new_session_ticket
+            ,s_max_ticket_num             = params.s_max_ticket_num
+            ,s_send_ticket_num            = params.s_send_ticket_num
+            ,message_list                 = params.message_list
+        }
+
+        /* from ST_CW_CHANGE_ED to ST_CW_CLNT_HELLO
+         * from ST_CR_SRVR_HELLO to ST_CW_CLNT_HELLO
+         * change 'hello_retry_request' to hrr_done and 
+         * change 'early_data' to ee_none
+         */
+        params_hrr_2 = {
+            c_hrr                         = params.c_hrr
+            ,hello_retry_request          = hrr_done
+            ,middlebox_compatibility_mode = params.middlebox_compatibility_mode
+            ,psk_mode                     = params.psk_mode
+            ,early_data                   = params.early_data
+            ,c_ext_early_data             = params.c_ext_early_data
+            ,cert_request                 = params.cert_request
+            ,key_update                   = params.key_update
+            ,post_handshake_auth          = params.post_handshake_auth
+            ,empty_cert                   = params.empty_cert
+            ,s_cert_request               = params.s_cert_request
+            ,s_new_session_ticket         = params.s_new_session_ticket
+            ,s_max_ticket_num             = params.s_max_ticket_num
+            ,s_send_ticket_num            = params.s_send_ticket_num
+            ,message_list                 = params.message_list
+        }
+
+        /* from ST_EARLY_DATA to ST_CR_SRVR_HELLO
+         * change 'early_data' to ee_send in params
+         */
+        params_ed_3 = {
+            c_hrr                         = params.c_hrr
+            ,hello_retry_request          = params.hello_retry_request
+            ,middlebox_compatibility_mode = params.middlebox_compatibility_mode
+            ,psk_mode                     = params.psk_mode
+            ,early_data                   = ee_send
+            ,c_ext_early_data             = params.c_ext_early_data
+            ,cert_request                 = params.cert_request
+            ,key_update                   = params.key_update
+            ,post_handshake_auth          = params.post_handshake_auth
+            ,empty_cert                   = params.empty_cert
+            ,s_cert_request               = params.s_cert_request
+            ,s_new_session_ticket         = params.s_new_session_ticket
+            ,s_max_ticket_num             = params.s_max_ticket_num
+            ,s_send_ticket_num            = params.s_send_ticket_num
+            ,message_list                 = params.message_list
+        }
+
+        /* from ST_CR_ENCRYPTED_EXTENSIONS to ST_CR_CERT_REQ
+         * drop the head from message_list and change 'cert_request' to True in params
+         */
+        params_read_cr_4 = {
+            c_hrr                         = params.c_hrr
+            ,hello_retry_request          = params.hello_retry_request
+            ,middlebox_compatibility_mode = params.middlebox_compatibility_mode
+            ,psk_mode                     = params.psk_mode
+            ,early_data                   = params.early_data
+            ,c_ext_early_data             = params.c_ext_early_data
+            ,cert_request                 = True
+            ,key_update                   = params.key_update
+            ,post_handshake_auth          = params.post_handshake_auth
+            ,empty_cert                   = params.empty_cert
+            ,s_cert_request               = params.s_cert_request
+            ,s_new_session_ticket         = params.s_new_session_ticket
+            ,s_max_ticket_num             = params.s_max_ticket_num
+            ,s_send_ticket_num            = params.s_send_ticket_num
+            ,message_list                 = (drop`{1} params.message_list # zero)
+        }
+
+        /* from ST_CR_CERT_REQ to ST_CW_CERT
+         * change 'post_handshake_auth' to pha_done in params
+         */
+        params_write_c_5 = {
+            c_hrr                         = params.c_hrr
+            ,hello_retry_request          = params.hello_retry_request
+            ,middlebox_compatibility_mode = params.middlebox_compatibility_mode
+            ,psk_mode                     = params.psk_mode
+            ,early_data                   = params.early_data
+            ,c_ext_early_data             = params.c_ext_early_data
+            ,cert_request                 = params.cert_request
+            ,key_update                   = params.key_update
+            ,post_handshake_auth          = pha_done
+            ,empty_cert                   = params.empty_cert
+            ,s_cert_request               = params.s_cert_request
+            ,s_new_session_ticket         = params.s_new_session_ticket
+            ,s_max_ticket_num             = params.s_max_ticket_num
+            ,s_send_ticket_num            = params.s_send_ticket_num
+            ,message_list                 = params.message_list
+        }
+
+        /* from ST_OK to ST_CW_CERT_REQ
+         * change 'post_handshake_auth' to pha_on in params
+         * change 'cert_request' to True in params
+         */
+        params_read_pcr_6 = {
+            c_hrr                         = params.c_hrr
+            ,hello_retry_request          = params.hello_retry_request
+            ,middlebox_compatibility_mode = params.middlebox_compatibility_mode
+            ,psk_mode                     = params.psk_mode
+            ,early_data                   = params.early_data
+            ,c_ext_early_data             = params.c_ext_early_data
+            ,cert_request                 = True
+            ,key_update                   = params.key_update
+            ,post_handshake_auth          = pha_on
+            ,empty_cert                   = params.empty_cert
+            ,s_cert_request               = params.s_cert_request
+            ,s_new_session_ticket         = params.s_new_session_ticket
+            ,s_max_ticket_num             = params.s_max_ticket_num
+            ,s_send_ticket_num            = params.s_send_ticket_num
+            ,message_list                 = (drop`{1} params.message_list # zero)
+        }
+
+        /* from ST_CW_KEY_UPDATE to ST_CW_KEY_UPDATE_ED
+         * change 'key_update' to ku_done in params
+         */
+        params_write_ku_7 = {
+            c_hrr                         = params.c_hrr
+            ,hello_retry_request          = params.hello_retry_request
+            ,middlebox_compatibility_mode = params.middlebox_compatibility_mode
+            ,psk_mode                     = params.psk_mode
+            ,early_data                   = params.early_data
+            ,c_ext_early_data             = params.c_ext_early_data
+            ,cert_request                 = params.cert_request
+            ,key_update                   = ku_done
+            ,post_handshake_auth          = params.post_handshake_auth
+            ,empty_cert                   = params.empty_cert
+            ,s_cert_request               = params.s_cert_request
+            ,s_new_session_ticket         = params.s_new_session_ticket
+            ,s_max_ticket_num             = params.s_max_ticket_num
+            ,s_send_ticket_num            = params.s_send_ticket_num
+            ,message_list                 = params.message_list
+        }
+
+        /* state 01, ST_BEFORE
+         * to ST_CW_CLNT_HELLO, no message
+         */
+        (acs : [7]Action) = if id == ID_ST_BEFORE then ([
+        action True none ID_ST_BEFORE Empty empty client ID_ST_CW_CLNT_HELLO params
+        ] # zero)
+
+        /* state 02, ST_CW_CLNT_HELLO
+         * to ST_CW_CLNT_HELLO_ED, send handshake message MT_CLNT_HELLO
+         */
+            else if id == ID_ST_CW_CLNT_HELLO then ([
+        action True write ID_ST_CW_CLNT_HELLO MT_CLNT_HELLO handshake client ID_ST_CW_CLNT_HELLO_ED params
+        ] # zero)
+
+        /* state 03, ST_CW_CLNT_HELLO_ED
+         * from  to ST_CW_CHANGE,                        no message
+         * to ST_EARLY_DATA,    no message
+         * to ST_CR_SRVR_HELLO, read handshake message MT_SERVER_HELLO,
+         *     change parameters to params_read_only_1, drop the head from message_list
+         */
+            else if id == ID_ST_CW_CLNT_HELLO_ED then ([
+        action (params.early_data == ee_on /\ params.middlebox_compatibility_mode) none ID_ST_CW_CLNT_HELLO_ED Empty empty client ID_ST_CW_CHANGE  params
+        ,action (params.early_data == ee_on /\ ~params.middlebox_compatibility_mode) none ID_ST_CW_CLNT_HELLO_ED Empty empty client ID_ST_EARLY_DATA params
+        // ,action (params.early_data != ee_on /\ (head params.message_list == MT_SERVER_HELLO)) read ID_ST_CW_CLNT_HELLO_ED MT_SERVER_HELLO handshake server ID_ST_CR_SRVR_HELLO params_read_sh_nohrr
+        ,action (params.early_data != ee_on /\ (head params.message_list == MT_SERVER_HELLO) /\ (params.hello_retry_request == hrr_unknown) /\ params.c_hrr) read ID_ST_CW_CLNT_HELLO_ED MT_SERVER_HELLO handshake server ID_ST_CR_SRVR_HELLO params_read_sh_hrr //change
+        ,action (params.early_data != ee_on /\ (head params.message_list == MT_SERVER_HELLO) /\ (params.hello_retry_request == hrr_unknown) /\ ~params.c_hrr) read ID_ST_CW_CLNT_HELLO_ED MT_SERVER_HELLO handshake server ID_ST_CR_SRVR_HELLO params_read_sh_nohrr //ee
+        ,action (params.early_data != ee_on /\ (head params.message_list == MT_SERVER_HELLO)) read ID_ST_CW_CLNT_HELLO_ED MT_SERVER_HELLO handshake server ID_ST_CR_SRVR_HELLO params_read_sh_nohrr
+        ]# zero)
+
+        /* state 04, ST_CW_CHANGE
+         * to ST_CW_CHANGE_ED, send changeCipherSpec message MT_CHANGE_CIPHER_SPEC
+         */
+            else if id == ID_ST_CW_CHANGE then ([
+        action True write ID_ST_CW_CHANGE MT_CHANGE_CIPHER_SPEC changeCipherSpec client ID_ST_CW_CHANGE_ED params_write_ccs
+        ] # zero)
+
+        /* state 05, ST_CW_CHANGE_ED
+         * to ST_CW_CLNT_HELLO, no message, 
+         *     change parameters to params_hrr_2, change 'hello_retry_request' to hrr_done
+         * to ST_EARLY_DATA,    no message
+         */
+            else if id == ID_ST_CW_CHANGE_ED then ([
+        action (params.hello_retry_request == hrr_on) none ID_ST_CW_CHANGE_ED Empty empty client ID_ST_CW_CLNT_HELLO params_hrr_2
+        ,action (params.hello_retry_request != hrr_on /\ params.early_data == ee_on) none ID_ST_CW_CHANGE_ED Empty empty client ID_ST_EARLY_DATA params
+        ,action (~(params.hello_retry_request != hrr_on /\ params.early_data == ee_on) /\ params.cert_request) none ID_ST_CW_CHANGE_ED Empty empty client ID_ST_CW_CERT params
+        ,action (~(params.hello_retry_request != hrr_on /\ params.early_data == ee_on) /\ ~params.cert_request) none ID_ST_CW_CHANGE_ED Empty empty client ID_ST_CW_FINISHED params
+        ] # zero)
+
+        /* state 06, ST_EARLY_DATA
+         * to ST_EARLY_DATA_ED, send handshake message MT_DUMMY,
+         *     change parameters to params_ed_3, change 'early_data' to ee_send in params
+         */
+            else if id == ID_ST_EARLY_DATA then ([
+        action True write ID_ST_EARLY_DATA MT_DUMMY handshake client ID_ST_EARLY_DATA_ED params_ed_3
+        ] # zero)
+
+        /* state 07, ST_EARLY_DATA_ED
+         * to ST_CR_SRVR_HELLO, read handshake message MT_SERVER_HELLO
+         */
+            else if id == ID_ST_EARLY_DATA_ED then ([
+        action (head params.message_list == MT_SERVER_HELLO /\ (params.hello_retry_request == hrr_unknown) /\ params.c_hrr) read ID_ST_EARLY_DATA_ED MT_SERVER_HELLO handshake server ID_ST_CR_SRVR_HELLO params_read_sh_hrr
+        ,action (head params.message_list == MT_SERVER_HELLO /\ (params.hello_retry_request == hrr_unknown) /\ ~params.c_hrr) read ID_ST_EARLY_DATA_ED MT_SERVER_HELLO handshake server ID_ST_CR_SRVR_HELLO params_read_sh_nohrr
+        ] # zero)
+
+        /* state 08, ST_CR_SRVR_HELLO
+         * to ST_CW_CHANGE,     no message, no change
+         * to ST_CW_CLNT_HELLO, no message,
+         *     change parameters to params_hrr_2,  change 'hello_retry_request' to hrr_done
+         * to ST_CR_ENCRYPTED_EXTENSIONS, read handshake message MT_ENCRYPTED_EXTENSIONS
+         *     change parameters to params_read_only_1, drop the head from message_list
+         */
+            else if id == ID_ST_CR_SRVR_HELLO then ([ 
+        action (params.hello_retry_request == hrr_on /\ params.middlebox_compatibility_mode /\ params.early_data != ee_send) none ID_ST_CR_SRVR_HELLO Empty empty client ID_ST_CW_CHANGE params
+        ,action (params.hello_retry_request == hrr_on /\ ~(params.middlebox_compatibility_mode /\ params.early_data != ee_send)) none ID_ST_CR_SRVR_HELLO Empty empty client ID_ST_CW_CLNT_HELLO params_hrr_2
+        ,action (params.hello_retry_request != hrr_on /\ (head params.message_list == MT_ENCRYPTED_EXTENSIONS)) read ID_ST_CR_SRVR_HELLO MT_ENCRYPTED_EXTENSIONS handshake server ID_ST_CR_ENCRYPTED_EXTENSIONS params_read_only_1
+        ] # zero)
+
+        /* state 09, ST_CR_ENCRYPTED_EXTENSIONS
+         * to ST_CR_FINISHED, read handshake message MT_FINISHED
+         *     change parameters to params_read_only_1, drop the head from message_list
+         * to ST_CR_CERT_REQ, read handshake message MT_CERTIFICATE_REQUEST,
+         *     change parameters to c3_params, cert_req = On
+         * to ST_CR_CERT,     read handshake message MT_CERTIFICATE
+         *     change parameters to params_read_only_1, drop the head from message_list
+         */
+            else if id == ID_ST_CR_ENCRYPTED_EXTENSIONS then ([ 
+        action (params.psk_mode /\ (head params.message_list == MT_FINISHED)) read ID_ST_CR_ENCRYPTED_EXTENSIONS MT_FINISHED handshake server ID_ST_CR_FINISHED params_read_only_1
+        ,action (~params.psk_mode /\ (head params.message_list == MT_CERTIFICATE_REQUEST)) read ID_ST_CR_ENCRYPTED_EXTENSIONS MT_CERTIFICATE_REQUEST handshake server ID_ST_CR_CERT_REQ params_read_cr_4
+        ,action (~params.psk_mode /\ (head params.message_list == MT_CERTIFICATE)) read ID_ST_CR_ENCRYPTED_EXTENSIONS MT_CERTIFICATE handshake server ID_ST_CR_CERT params_read_only_1
+        ] # zero)
+
+        /* state 10, ST_CR_CERT_REQ
+         * to ST_CW_CERT, no message, change parameters to params_write_c_5
+         * to ST_CR_CERT, read handshake message MT_CERTIFICATE
+         *     change parameters to params_read_only_1, drop the head from message_list
+         */
+            else if id == ID_ST_CR_CERT_REQ then ([ 
+        action (params.post_handshake_auth == pha_on) none ID_ST_CR_CERT_REQ Empty empty client ID_ST_CW_CERT params_write_c_5
+        ,action (params.post_handshake_auth != pha_on /\ (head params.message_list == MT_CERTIFICATE)) read ID_ST_CR_CERT_REQ MT_CERTIFICATE handshake server ID_ST_CR_CERT params_read_only_1
+        ] # zero)
+
+        /* state 11, ST_CR_CERT
+         * to ST_CR_CERT_VRFY, read handshake message MT_FINISHED,
+         *     change parameters to params_read_only_1, drop the head from message_list
+         */
+            else if id == ID_ST_CR_CERT then ([ 
+        action (head params.message_list == MT_CERTIFICATE_VERIFY) read ID_ST_CR_CERT MT_CERTIFICATE_VERIFY handshake server ID_ST_CR_CERT_VRFY params_read_only_1
+        ] # zero)
+
+        /* state 12, ST_CR_CERT_VRFY
+         * to ST_CR_FINISHED, read handshake message MT_FINISHED,
+         *     change parameters to params_read_only_1, drop the head from message_list
+         */
+            else if id == ID_ST_CR_CERT_VRFY then ([ 
+        action (head params.message_list == MT_FINISHED) read ID_ST_CR_CERT_VRFY MT_FINISHED handshake server ID_ST_CR_FINISHED params_read_only_1
+        ] # zero)
+
+        /* state 13, ST_CR_FINISHED
+         * to ST_PENDING_EARLY_DATA_END, no message, no change
+         * to ST_CW_CHANGE             , no message, no change
+         * to ST_CW_CERT               , no message, no changes
+         * to ST_CW_FINISHED           , no message, no change
+         */
+            else if id == ID_ST_CR_FINISHED then ([ 
+        action (params.early_data == ee_send) none ID_ST_CR_FINISHED Empty empty client ID_ST_PENDING_EARLY_DATA_END params
+        ,action (params.early_data != ee_send /\ params.middlebox_compatibility_mode /\ params.hello_retry_request == hrr_off) none ID_ST_CR_FINISHED Empty empty client ID_ST_CW_CHANGE params
+        ,action (params.early_data != ee_send /\ ~(params.middlebox_compatibility_mode /\ params.hello_retry_request == hrr_off) /\ params.cert_request) none ID_ST_CR_FINISHED Empty empty client ID_ST_CW_CERT params
+        ,action (params.early_data != ee_send /\ ~(params.middlebox_compatibility_mode /\ params.hello_retry_request == hrr_off) /\ ~params.cert_request) none ID_ST_CR_FINISHED Empty empty client ID_ST_CW_FINISHED params
+        ] # zero)
+
+        /* state 13.5, ST_PENDING_EARLY_DATA_END
+         * to ST_PENDING_EARLY_DATA_END_ED, send handshake message MT_DUMMY,
+         * no message, no changes
+         */
+            else if id == ID_ST_PENDING_EARLY_DATA_END then ([
+        action True write ID_ST_PENDING_EARLY_DATA_END MT_DUMMY handshake client ID_ST_PENDING_EARLY_DATA_END_ED params
+        ] # zero)
+
+        /* state 14, ST_PENDING_EARLY_DATA_END_ED
+         * to ST_CW_END_OF_EARLY_DATA, no message, no change
+         * to ST_CW_CERT             , no message, no change
+         * to ST_CW_FINISHED         , no message, no change
+         */
+            else if id == ID_ST_PENDING_EARLY_DATA_END_ED then ([
+        action (params.c_ext_early_data) none ID_ST_PENDING_EARLY_DATA_END_ED Empty empty client ID_ST_CW_END_OF_EARLY_DATA params
+        ,action (~params.c_ext_early_data /\ params.cert_request) none ID_ST_PENDING_EARLY_DATA_END_ED Empty empty client ID_ST_CW_CERT params
+        ,action (~params.c_ext_early_data /\ ~params.cert_request) none ID_ST_PENDING_EARLY_DATA_END_ED Empty empty client ID_ST_CW_FINISHED params
+        ] # zero)
+
+        /* state 15, ST_CW_END_OF_EARLY_DATA
+         * to ST_CW_END_OF_EARLY_DATA_ED, send handshake message MT_END_OF_EARLY_DATA
+         */
+            else if id == ID_ST_CW_END_OF_EARLY_DATA then ([
+        action True write ID_ST_CW_END_OF_EARLY_DATA MT_END_OF_EARLY_DATA handshake client ID_ST_CW_END_OF_EARLY_DATA_ED params
+        ] # zero)
+
+        /* state 16, ST_CW_END_OF_EARLY_DATA_ED
+         * to ST_CW_CERT    , no message, no change
+         * to ST_CW_FINISHED, no message, no change
+         */
+            else if id == ID_ST_CW_END_OF_EARLY_DATA_ED then ([
+        action (params.cert_request) none ID_ST_CW_END_OF_EARLY_DATA_ED Empty empty client ID_ST_CW_CERT params
+        ,action (~params.cert_request) none ID_ST_CW_END_OF_EARLY_DATA_ED Empty empty client ID_ST_CW_FINISHED params
+        ] # zero)
+
+        /* state 17, ST_CW_CERT
+         * to ST_CW_CERT_ED, send handshake message MT_CERTIFICATE, no change
+         */
+            else if id == ID_ST_CW_CERT then ([
+        action True write ID_ST_CW_CERT MT_CERTIFICATE handshake client ID_ST_CW_CERT_ED params
+        ] # zero)
+
+        /* state 18, ST_CW_CERT_ED
+         * to ST_CW_FINISHED,  no message, no change
+         * to ST_CW_CERT_VRFY, no message, no change
+         */
+            else if id == ID_ST_CW_CERT_ED then ([
+        action (params.empty_cert) none  ID_ST_CW_CERT_ED Empty empty client ID_ST_CW_FINISHED params
+        ,action (~params.empty_cert) none ID_ST_CW_CERT_ED Empty empty client ID_ST_CW_CERT_VRFY params
+        ] # zero)
+
+        /* state 19, ST_CW_CERT_VRFY
+         * to ST_CW_CERT_VRFY_ED, send handshake message MT_CERTIFICATE_VERIFY, no change
+         */
+            else if id == ID_ST_CW_CERT_VRFY then ([
+        action True write ID_ST_CW_CERT_VRFY MT_CERTIFICATE_VERIFY handshake client ID_ST_CW_CERT_VRFY_ED params
+        ] # zero)
+
+        /* state 20, ST_CW_CERT_VRFY_ED
+         * to ST_CW_FINISHED, no message, no change
+         */
+            else if id == ID_ST_CW_CERT_VRFY_ED then ([
+        action True none ID_ST_CW_CERT_VRFY_ED Empty empty client ID_ST_CW_FINISHED params
+        ] # zero)
+        
+        /* state 21, ST_CW_FINISHED
+         * to ST_CW_FINISHED_ED, send handshake message MT_FINISHED
+         */
+            else if id == ID_ST_CW_FINISHED then ([
+        action True write ID_ST_CW_FINISHED MT_FINISHED handshake client ID_ST_CW_FINISHED_ED params
+        ] # zero)
+
+        /* state 22, ST_CW_FINISHED_ED
+         * to ST_OK, no message, no change
+         */
+            else if id == ID_ST_CW_FINISHED_ED then ([
+        action True none ID_ST_CW_FINISHED_ED Empty empty client ID_ST_OK params
+        ] # zero)
+
+        /* state 23, ST_OK
+         * to ST_CW_KEY_UPDATE, no message, no change
+         */
+            else if id == ID_ST_OK then ([
+        action (params.key_update == ku_on) none ID_ST_OK Empty empty client ID_ST_CW_KEY_UPDATE params
+        ,action (params.post_handshake_auth == pha_on /\ (head params.message_list == MT_CERTIFICATE_REQUEST)) read ID_ST_OK MT_CERTIFICATE_REQUEST handshake server ID_ST_CR_CERT_REQ params_read_pcr_6
+        ,action (head params.message_list == MT_KEY_UPDATE) read ID_ST_OK MT_KEY_UPDATE handshake server ID_ST_CR_KEY_UPDATE params_read_only_1
+        ,action (head params.message_list == MT_NEWSESSION_TICKET) read ID_ST_OK MT_NEWSESSION_TICKET handshake server ID_ST_CR_SESSION_TICKET params_read_only_1 //sessionticket_1
+        ,action (~((params.key_update == ku_on) /\ (params.post_handshake_auth == pha_on))) none ID_ST_OK Empty empty server ID_EMPTY params
+        ] # zero)
+
+
+        /* state 24, ST_CW_KEY_UPDATE
+         * to ST_CW_KEY_UPDATE_ED, send handshake message MT_KEY_UPDATE, change parameters to params_write_ku
+         */
+            else if id == ID_ST_CW_KEY_UPDATE then ([
+        action True write ID_ST_CW_KEY_UPDATE MT_KEY_UPDATE handshake client ID_ST_CW_KEY_UPDATE_ED params_write_ku_7
+        ] # zero)
+
+        /* state 25, ST_CW_KEY_UPDATE_ED
+         * to ST_OK, no message, no change
+         */
+            else if id == ID_ST_CW_KEY_UPDATE_ED then ([
+        action True none ID_ST_CW_KEY_UPDATE_ED Empty empty client ID_ST_OK params
+        ] # zero)
+
+        /* state 26, ST_CR_KEY_UPDATE
+         * to ST_OK, no message, no change
+         */
+            else if id == ID_ST_CR_KEY_UPDATE then ([
+        action True none ID_ST_CR_KEY_UPDATE Empty empty client ID_ST_OK params
+        ] # zero)
+
+        /* state 27, ST_CR_SESSION_TICKET
+         * to ST_OK, no message, no change
+         */
+            else if id == ID_ST_CR_SESSION_TICKET then ([
+        action True none ID_ST_CR_SESSION_TICKET Empty empty client ID_ST_OK params
+        ] # zero)
+
+            else if id == ID_EMPTY then ([
+        action True none ID_EMPTY Empty empty client ID_EMPTY params
+        ] # zero)
+
+            else ([] # zero)
+
+
+stateMachine : {n} (fin n, n >= 1) => Parameters -> [n]TLSTuple
+stateMachine params = ((iterate stateTransition (initialHandshake, initialState))@`n).0.tuples
+    where   initialHandshake = {
+                tuples = repeat empty_tuple,
+                index = 0:[width n]
+            }
+
+            initialState = conClientState ID_ST_BEFORE params
+            emptyState = conClientState ID_EMPTY params
+
+            stateTransition (hs, st) = doAction hs (find (\action -> action.condition == True) empty_action st.actions)
+            doAction hs action = if hs.index < `n /\ action.condition
+                                    then (updateHandshake hs action.tuple, conClientState action.tuple.next_id action.tuple.new_params)
+                                    else (hs, emptyState)
+
+            updateHandshake hs value = {
+                tuples = update hs.tuples hs.index value,
+                index = hs.index + 1
+            }

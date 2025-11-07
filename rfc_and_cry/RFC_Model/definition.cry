@@ -1,0 +1,242 @@
+module RFC_Model::definition where
+
+// TLS Handshake Message Types
+type MessageType = [4]
+(MT_CHANGE_CIPHER_SPEC         : MessageType) = 11   // change_cipher_spec  in changeCipherSpec protocol
+(MT_DUMMY                      : MessageType) = 12   // early_data          in ApplicationData protocol
+(AL_Error                      : MessageType) = 13  // alert               in Alert Protocol
+(Empty                         : MessageType) = 0  // alert               in Alert Protocol
+
+(MT_CLNT_HELLO                 : MessageType) = 1   // ClientHello         in Handshake Layer
+(MT_SERVER_HELLO               : MessageType) = 2   // ServerHello         in Handshake Layer
+(MT_ENCRYPTED_EXTENSIONS       : MessageType) = 3   // EncryptedExtensions in Handshake Layer
+(MT_CERTIFICATE_REQUEST        : MessageType) = 4   // CertificateRequest  in Handshake Layer
+(MT_CERTIFICATE                : MessageType) = 5   // Certificate         in Handshake Layer
+(MT_CERTIFICATE_VERIFY         : MessageType) = 6   // CertificateVerify   in Handshake Layer
+(MT_FINISHED                   : MessageType) = 7   // Finished            in Handshake Layer
+(MT_END_OF_EARLY_DATA          : MessageType) = 8   // EndOfEarlyData      in Handshake Layer
+(MT_KEY_UPDATE                 : MessageType) = 9  // KeyUpdate           in Handshake Layer
+(MT_NEWSESSION_TICKET          : MessageType) = 10  // NewSessionTicket    in Handshake Layer
+//Set all fields related to key exchange to -1, others to 0
+
+
+// TLS Handshake State Types
+type StateID = [6]
+// States in Common
+(ID_ST_ERROR                      : StateID) = 0
+(ID_ST_BEFORE                     : StateID) = 1
+(ID_ST_EARLY_DATA                 : StateID) = 2
+(ID_ST_EARLY_DATA_ED              : StateID) = 3
+(ID_ST_OK                         : StateID) = 4
+
+
+// Client Intermediate State
+(ID_ST_PENDING_EARLY_DATA_END     : StateID) = 5
+(ID_ST_PENDING_EARLY_DATA_END_ED  : StateID) = 6
+
+// Client Write States
+(ID_ST_CW_CLNT_HELLO              : StateID) = 7
+(ID_ST_CW_CLNT_HELLO_ED           : StateID) = 8
+
+(ID_ST_CW_CHANGE                  : StateID) = 9
+(ID_ST_CW_CHANGE_ED               : StateID) = 10
+
+(ID_ST_CW_END_OF_EARLY_DATA       : StateID) = 11
+(ID_ST_CW_END_OF_EARLY_DATA_ED    : StateID) = 12
+
+(ID_ST_CW_CERT                    : StateID) = 13
+(ID_ST_CW_CERT_ED                 : StateID) = 14
+
+(ID_ST_CW_CERT_VRFY               : StateID) = 15
+(ID_ST_CW_CERT_VRFY_ED            : StateID) = 16
+
+(ID_ST_CW_FINISHED                : StateID) = 17
+(ID_ST_CW_FINISHED_ED             : StateID) = 18
+
+(ID_ST_CW_KEY_UPDATE              : StateID) = 19
+(ID_ST_CW_KEY_UPDATE_ED           : StateID) = 20
+
+// Client Read States
+(ID_ST_CR_SRVR_HELLO              : StateID) = 21
+(ID_ST_CR_ENCRYPTED_EXTENSIONS    : StateID) = 22
+(ID_ST_CR_CERT_REQ                : StateID) = 23
+(ID_ST_CR_CERT                    : StateID) = 24
+(ID_ST_CR_CERT_VRFY               : StateID) = 25
+(ID_ST_CR_FINISHED                : StateID) = 26
+(ID_ST_CR_KEY_UPDATE              : StateID) = 27
+(ID_ST_CR_SESSION_TICKET          : StateID) = 28
+
+// Server Write States
+(ID_ST_SW_SRVR_HELLO              : StateID) = 29
+(ID_ST_SW_SRVR_HELLO_ED           : StateID) = 30
+
+(ID_ST_SW_ENCRYPTED_EXTENSIONS    : StateID) = 31
+(ID_ST_SW_ENCRYPTED_EXTENSIONS_ED : StateID) = 32
+
+(ID_ST_SW_CHANGE                  : StateID) = 33
+(ID_ST_SW_CHANGE_ED               : StateID) = 34
+
+(ID_ST_SW_CERT_REQ                : StateID) = 35
+(ID_ST_SW_CERT_REQ_ED             : StateID) = 36
+
+(ID_ST_SW_CERT                    : StateID) = 37
+(ID_ST_SW_CERT_ED                 : StateID) = 38
+
+(ID_ST_SW_CERT_VRFY               : StateID) = 39
+(ID_ST_SW_CERT_VRFY_ED            : StateID) = 40
+
+(ID_ST_SW_FINISHED                : StateID) = 41
+(ID_ST_SW_FINISHED_ED             : StateID) = 42
+
+(ID_ST_SW_KEY_UPDATE              : StateID) = 43
+(ID_ST_SW_KEY_UPDATE_ED           : StateID) = 44
+
+(ID_ST_SW_SESSION_TICKET          : StateID) = 45
+(ID_ST_SW_SESSION_TICKET_ED       : StateID) = 46
+
+
+
+// Server Read States
+(ID_ST_SR_CLNT_HELLO              : StateID) = 47
+(ID_ST_SR_END_OF_EARLY_DATA       : StateID) = 48
+(ID_ST_SR_CERT                    : StateID) = 49
+(ID_ST_SR_CERT_VRFY               : StateID) = 50
+(ID_ST_SR_FINISHED                : StateID) = 51
+(ID_ST_SR_KEY_UPDATE              : StateID) = 52
+(ID_EMPTY                         : StateID) = 53
+
+
+/* The Structure of TLS Protocols
+|-------------------------------------------------------------------------|
+|   Handshake   |   Alert   |   ChangeCipherspec   |   Application Data   |
+|-------------------------------------------------------------------------|
+|                               Record Layer                              |
+|-------------------------------------------------------------------------|*/
+
+// TLS Protocol Types
+type Protocol = [3]
+(handshake        : Protocol) = 0
+(changeCipherSpec : Protocol) = 1
+(alert            : Protocol) = 2
+(empty            : Protocol) = 3
+
+// TLS Message Senders
+type Sender = [2]
+(server  : Sender) = 0
+(client  : Sender) = 1
+(both    : Sender) = 2
+
+// The Direction of TLS Messages inside Actions
+type Direction = [2]
+(read    : Sender) = 0
+(write   : Sender) = 1
+(none    : Sender) = 2
+
+// Abstraction of the TLS message
+/* For a single message, we ignore the fields and specific values first and only consider:
+ * 1. TLS Handshake Message Types;
+ * 2. TLS Protocol Types;
+ * 3. TLS Message Senders.
+ */ 
+type Message = {
+    messageType  : MessageType,
+    protocol     : Protocol,
+    sender       : Sender
+}
+
+type TLSTuple = {
+    cur_id       : StateID
+    ,message     : Message
+    ,next_id     : StateID
+    ,new_params  : Parameters
+}
+
+(empty_message   : Message) = {
+    messageType  = Empty
+    ,protocol    = empty
+    ,sender      = both
+}
+
+
+type Action = {
+    condition    : Bit
+    ,direction   : Direction
+    ,tuple       : TLSTuple
+}
+
+type State = {
+    cur_id          : StateID
+    ,actions      : [10]Action
+    // ,next        : StateID
+    ,cur_params   : Parameters
+    // ,next_param  : Parameters
+}
+
+// Choices for HelloRetryRequest
+type HelloRetryRequest = [2]
+(hrr_off              : HelloRetryRequest) = 0 // from ST_Before to receive the first ServerHello
+(hrr_on               : HelloRetryRequest) = 1 // client receive the first ServerHello (HelloRetryRequest)
+(hrr_done             : HelloRetryRequest) = 2 // client has respond a second ClientHello
+(hrr_unknown          : HelloRetryRequest) = 3 // after receive the first ServerHello (real ServerHello)
+
+// Choices for EarlyData
+type EarlyData = [3]
+(ee_off               : EarlyData) = 0 // early data is not supported
+(ee_on                : EarlyData) = 1 // early data is allowed
+(ee_send              : EarlyData) = 2 // client has send early data
+(ee_acc               : EarlyData) = 3 // the server has accepted early data
+// (ee_none              : EarlyData) = 4 // Early data is not permitted after a HelloRetryRequest
+
+// Choices for Post Handshake Authentication
+type PostHandshakeAuth = [3]
+(pha_off              : PostHandshakeAuth) = 0 // post handshake authentication is not supported
+(pha_on               : PostHandshakeAuth) = 1 // post handshake authentication is supported
+(pha_done             : PostHandshakeAuth) = 2 // client has completed post handshake authentication
+
+// Choices for Key Update
+type KeyUpdate = [2]
+(ku_off               : KeyUpdate) = 0 // post handshake authentication is not supported
+(ku_on                : KeyUpdate) = 1 // client has requested post handshake authentication
+(ku_done              : KeyUpdate) = 2 // client has completed post handshake authentication
+
+
+/*
+ * The fields start with c_ is unique for client.
+ * The fileds start with s_ is unique for server.
+ * The remaining fields are common to both.
+ */
+type Parameters = {
+    c_hrr                         : Bit               // 1 for hrr on; 0 for hrr off
+    ,middlebox_compatibility_mode : Bit               // 1 for Middlebox Compatibility Mode on -- will send ChangeCipherSpec message; 0 for off
+    ,psk_mode                     : Bit               // 1 for Pre-Shared Key  Based Authentication on; 0 for off
+    ,early_data                   : EarlyData         // indicate the choice of sending/receiving Early Data
+    ,c_ext_early_data             : Bit               // 1 for client known that 0RTT data has been accepted, 0 for not.
+    ,s_cert_request               : Bit               // 1 for server try to send CertificateRequest, 0 for not.
+    ,key_update                   : KeyUpdate         // indicate the choice of sending KeyUpdate message
+    ,post_handshake_auth          : PostHandshakeAuth // indicate the choice of Post-Handshake Client Authentication
+    ,empty_cert                   : Bit
+    ,s_new_session_ticket         : Bit
+    ,s_max_ticket_num             : [5]
+    ,s_send_ticket_num            : [5]
+    ,cert_request                 : Bit               // 1 for client received certificate request, 0 for not; 1 for server has sent CertificateRequest, 0 for not.
+    ,hello_retry_request          : HelloRetryRequest // hrr_unknown at first; hrr_on if c_hrr == 1; hrr_off if c_hrr == 0
+    ,message_list                 : [20]MessageType
+}
+
+
+// {
+//     "c_hrr"                         : [false, true],
+//     "middlebox_compatibility_mode"  : [false, true],
+//     "psk_mode"                      : [false, true],
+//     "early_data"                    : ["ee_off", "ee_on"],
+//     "c_ext_early_data"              : [false, true],
+//     "s_cert_request"                : [false, true],
+//     "key_update"                    : ["ku_off", "ku_on"],
+//     "post_handshake_auth"           : ["pha_off", "pha_on"],
+//     "empty_cert"                    : [false, true],
+//     "s_new_session_ticket"          : [false, true],
+//     "s_max_ticket_num"              : [5],
+//     "s_send_ticket_num"             : [0],
+//     "cert_request"                  : [false],
+//     "hello_retry_request"           : ["hrr_unknown"]
+// }

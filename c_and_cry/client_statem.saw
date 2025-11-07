@@ -1,0 +1,267 @@
+
+include "statemDef.saw";
+import "..//cry//client_statem.cry";
+
+let client_hello_spec = do{
+    (s,conn) <- setup_spec;
+    llvm_execute_func [s];
+
+    let conn' = {{mbedtls_ssl_write_client_hello conn}};
+
+    llvm_points_to (llvm_field s "state") (llvm_term {{conn'.1.state}});
+    llvm_return (llvm_term {{conn'.0}});
+};
+
+let server_hello_spec = do{
+    (s,conn) <- setup_spec;
+
+    llvm_alloc_global "mr";
+    r <- llvm_fresh_var "r" (llvm_int 32);
+    llvm_points_to (llvm_global "mr") (llvm_term r);
+
+    llvm_execute_func [s];
+
+    let conn' = {{ssl_tls13_process_server_hello conn r}};
+
+    llvm_points_to (llvm_field s "state") (llvm_term {{conn'.1.state}});
+    llvm_return (llvm_term {{conn'.0}});
+};
+
+let encrypted_extensions_spec = do{
+    (s,conn) <- setup_spec;
+    llvm_execute_func [s];
+
+    let conn' = {{ssl_tls13_process_encrypted_extensions conn}};
+
+    llvm_points_to (llvm_field s "state") (llvm_term {{conn'.1.state}});
+    llvm_return (llvm_term {{conn'.0}});
+};
+
+let certificate_request_spec = do{
+    (s,conn) <- setup_spec;
+
+    llvm_alloc_global "mr";
+    r <- llvm_fresh_var "r" (llvm_int 32);
+    llvm_points_to (llvm_global "mr") (llvm_term r);
+
+    llvm_execute_func [s];
+
+    let conn' = {{ssl_tls13_process_certificate_request conn r}};
+
+    llvm_points_to (llvm_field s "state") (llvm_term {{conn'.1.state}});
+    llvm_return (llvm_term {{conn'.0}});
+};
+
+let server_certificate_spec = do{
+    (s,conn) <- setup_spec;
+
+    llvm_alloc_global "mr";
+    r <- llvm_fresh_var "r" (llvm_int 32);
+    llvm_points_to (llvm_global "mr") (llvm_term r);
+
+    llvm_execute_func [s];
+
+    let conn' = {{ssl_tls13_process_server_certificate conn r}};
+
+    llvm_points_to (llvm_field s "state") (llvm_term {{conn'.1.state}});
+    llvm_return (llvm_term {{conn'.0}});
+};
+
+let certificate_verify_spec = do{
+    (s,conn) <- setup_spec;
+
+    llvm_alloc_global "mr";
+    r <- llvm_fresh_var "r" (llvm_int 32);
+    llvm_points_to (llvm_global "mr") (llvm_term r);
+    
+    llvm_execute_func [s];
+
+    let conn' = {{ssl_tls13_process_certificate_verify conn r}};
+
+    llvm_points_to (llvm_field s "state") (llvm_term {{conn'.1.state}});
+    llvm_return (llvm_term {{conn'.0}});
+};
+
+let server_finished_spec = do{
+    (s,conn) <- setup_spec;
+
+    llvm_alloc_global "mr";
+    r <- llvm_fresh_var "r" (llvm_int 32);
+    llvm_points_to (llvm_global "mr") (llvm_term r);
+    
+    llvm_execute_func [s];
+
+    let conn' = {{ssl_tls13_process_server_finished conn r}};
+
+    llvm_points_to (llvm_field s "state") (llvm_term {{conn'.1.state}});
+    llvm_return (llvm_term {{conn'.0}});
+};
+
+let client_certificate_spec = do{
+    (s,conn) <- setup_spec;
+    // key_cert <- llvm_alloc (llvm_struct "struct.mbedtls_ssl_key_cert");
+
+    llvm_alloc_global "mr";
+    r <- llvm_fresh_var "r" (llvm_int 32);
+    llvm_points_to (llvm_global "mr") (llvm_term r);
+
+    llvm_alloc_global "non_empty";
+    ne <- llvm_fresh_var "ne" (llvm_int 32);
+    llvm_points_to (llvm_global "non_empty") (llvm_term ne);
+    llvm_precond {{ ne == (0:[32]) \/ ne == (1:[32]) }};
+
+    llvm_execute_func [s];
+
+    let conn' = {{ssl_tls13_write_client_certificate conn r ne}};
+
+    llvm_points_to (llvm_field s "state") (llvm_term {{conn'.1.state}});
+    llvm_return (llvm_term {{conn'.0}});
+};
+
+let c_certificate_verify_spec = do{
+    (s,conn) <- setup_spec;
+
+    llvm_alloc_global "mr";
+    r <- llvm_fresh_var "r" (llvm_int 32);
+    llvm_points_to (llvm_global "mr") (llvm_term r);
+    
+    llvm_execute_func [s];
+
+    let conn' = {{ssl_tls13_write_client_certificate_verify conn r}};
+
+    llvm_points_to (llvm_field s "state") (llvm_term {{conn'.1.state}});
+    llvm_return (llvm_term {{conn'.0}});
+};
+
+let client_finished_spec = do{
+    (s,conn) <- setup_spec;
+
+    llvm_alloc_global "mr";
+    r <- llvm_fresh_var "r" (llvm_int 32);
+    llvm_points_to (llvm_global "mr") (llvm_term r);
+    
+    llvm_execute_func [s];
+
+    let conn' = {{ssl_tls13_write_client_finished conn r}};
+
+    llvm_points_to (llvm_field s "state") (llvm_term {{conn'.1.state}});
+    llvm_return (llvm_term {{conn'.0}});
+};
+
+let flush_buffers_spec = do{
+    (s,conn) <- setup_spec;
+    
+    llvm_execute_func [s];
+
+    let conn' = {{ssl_tls13_flush_buffers conn }};
+
+    llvm_points_to (llvm_field s "state") (llvm_term {{conn'.1.state}});
+    llvm_return (llvm_term {{conn'.0}});
+};
+
+let handshake_wrapup_spec = do{
+    (s,conn) <- setup_spec;
+    
+    llvm_execute_func [s];
+
+    let conn' = {{ssl_tls13_handshake_wrapup conn }};
+
+    llvm_points_to (llvm_field s "state") (llvm_term {{conn'.1.state}});
+    llvm_return (llvm_term {{conn'.0}});
+};
+
+let change_cipher_spec_spec = do{
+    (s,conn) <- setup_spec;
+
+    llvm_alloc_global "mr";
+    r <- llvm_fresh_var "r" (llvm_int 32);
+    llvm_points_to (llvm_global "mr") (llvm_term r);
+    
+    llvm_execute_func [s];
+
+    let conn' = {{mbedtls_ssl_tls13_write_change_cipher_spec conn r}};
+
+    // llvm_points_to (llvm_field s "state") (llvm_term {{conn'.1.state}});
+    llvm_return (llvm_term {{conn'.0}});
+};
+
+let new_session_ticket_spec = do{
+    (s,conn) <- setup_spec;
+
+    llvm_alloc_global "mr";
+    r <- llvm_fresh_var "r" (llvm_int 32);
+    llvm_points_to (llvm_global "mr") (llvm_term r);
+    
+    llvm_execute_func [s];
+
+    let conn' = {{ssl_tls13_process_new_session_ticket conn r}};
+
+    llvm_points_to (llvm_field s "state") (llvm_term {{conn'.1.state}});
+    llvm_return (llvm_term {{conn'.0}});
+};
+
+let early_data_spec = do{
+    (s,conn) <- setup_spec;
+
+    llvm_alloc_global "mr";
+    r <- llvm_fresh_var "r" (llvm_int 32);
+    llvm_points_to (llvm_global "mr") (llvm_term r);
+    // llvm_precond {{ r == (1:[32]) }};
+
+    llvm_execute_func [s];
+
+    let conn' = {{ssl_tls13_write_end_of_early_data conn r}};
+
+    llvm_points_to (llvm_field s "state") (llvm_term {{conn'.1.state}});
+    llvm_return (llvm_term {{conn'.0}});
+
+};
+
+let handshake_client_step_spec ms eds = do{
+    (s,conn) <- setup_step_spec ms eds;
+
+    llvm_alloc_global "mr";
+    r <- llvm_fresh_var "r" (llvm_int 32);
+    llvm_points_to (llvm_global "mr") (llvm_term r);
+
+    llvm_alloc_global "non_empty";
+    ne <- llvm_fresh_var "ne" (llvm_int 32);
+    llvm_points_to (llvm_global "non_empty") (llvm_term ne);
+    llvm_precond {{ ne == (0:[32]) \/ ne == (1:[32]) }};
+
+    llvm_execute_func [s];
+
+    let conn' = {{mbedtls_ssl_tls13_handshake_client_step conn r ne}};
+
+    llvm_points_to (llvm_field s "state") (llvm_term {{conn'.1.state}});
+    llvm_return (llvm_term {{conn'.0}});
+};
+
+let run_handshake_client_step_spec ms eds = do{
+    print (str_concats ["Verifing: ", show ms, "-", show eds]);
+    llvm_verify cllvm "mbedtls_ssl_tls13_handshake_client_step" [] false (handshake_client_step_spec ms eds) (w4_unint_yices[]);
+};
+
+llvm_verify cllvm "mbedtls_ssl_write_client_hello" [] false client_hello_spec yices;
+llvm_verify cllvm "ssl_tls13_process_server_hello" [] false server_hello_spec (w4_unint_yices[]);
+llvm_verify cllvm "ssl_tls13_process_encrypted_extensions" [] false encrypted_extensions_spec yices;
+llvm_verify cllvm "ssl_tls13_process_certificate_request" [] false certificate_request_spec yices;
+llvm_verify cllvm "ssl_tls13_process_server_certificate" [] false server_certificate_spec yices;
+llvm_verify cllvm "ssl_tls13_process_certificate_verify" [] false certificate_verify_spec yices;
+llvm_verify cllvm "ssl_tls13_process_server_finished" [] false server_finished_spec yices;
+llvm_verify cllvm "ssl_tls13_write_client_certificate" [] false client_certificate_spec yices;
+llvm_verify cllvm "ssl_tls13_write_client_certificate_verify" [] false c_certificate_verify_spec yices;
+llvm_verify cllvm "ssl_tls13_write_client_finished" [] false client_finished_spec yices;
+llvm_verify cllvm "ssl_tls13_flush_buffers" [] false flush_buffers_spec yices;
+llvm_verify cllvm "ssl_tls13_handshake_wrapup" [] false handshake_wrapup_spec yices;
+llvm_verify cllvm "mbedtls_ssl_tls13_write_change_cipher_spec" [] false change_cipher_spec_spec yices;
+llvm_verify cllvm "ssl_tls13_process_new_session_ticket" [] false new_session_ticket_spec yices;
+llvm_verify cllvm "ssl_tls13_write_end_of_early_data" [] false early_data_spec yices;
+print "Sub-functions have been proven.";
+print"---------------";
+
+// llvm_verify cllvm "mbedtls_ssl_tls13_handshake_client_step" [] false handshake_client_step_spec (w4_unint_yices[]);
+for mbedtls_state (\ms -> 
+    for early_data_states (\eds -> 
+        run_handshake_client_step_spec ms eds));
+print "DONE";
